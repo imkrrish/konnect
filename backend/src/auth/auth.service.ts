@@ -10,19 +10,21 @@ export class AuthService {
   constructor(@InjectModel(User.name) private UserModal: Model<User>) {}
 
   async register(userDto: RegisterDto): Promise<User> {
-    const { firstName, lastName, email, userName, password } = userDto;
+    const { firstName, lastName, email, password } = userDto;
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new this.UserModal({
       firstName,
       lastName,
       email,
-      userName,
       password: hashedPassword,
     });
     try {
       await newUser.save();
       // Exclude the password field in the returned user object
-      return this.UserModal.findById(newUser._id).select('-password').exec();
+      return await this.UserModal.findById(newUser._id)
+        .select('-password')
+        .lean()
+        .exec();
     } catch (error) {
       if (error.code === 11000) {
         // Duplicate key error
@@ -32,11 +34,7 @@ export class AuthService {
     }
   }
 
-  async findByUserNameOrEmail(
-    userNameOrEmail: string,
-  ): Promise<User | undefined> {
-    return this.UserModal.findOne({
-      $or: [{ email: userNameOrEmail }, { userName: userNameOrEmail }],
-    }).exec();
+  async findByEmail(email: string): Promise<User | undefined> {
+    return this.UserModal.findOne({ email: email }).exec();
   }
 }

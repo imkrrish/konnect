@@ -29,28 +29,33 @@ export class AuthController {
     const user = await this.authService.register(userDto);
     if (!user) {
       return {
-        isSucces: false,
+        isSuccess: false,
         message: 'User already exists',
       };
     }
     return {
-      isSucces: true,
-      data: user,
+      isSuccess: true,
+      data: {
+        ...user,
+        name: user.firstName + ' ' + user.lastName,
+      },
     };
   }
 
   @Post('login')
   async login(@Body() loginDto: LoginDto, @Res() res: Response) {
-    const { userNameOrEmail, password } = loginDto;
+    const { email, password } = loginDto;
 
-    const user = await this.authService.findByUserNameOrEmail(userNameOrEmail);
+    const user = await this.authService.findByEmail(email);
 
     if (user && (await bcrypt.compare(password, user.password))) {
       const token = this.jwtService.sign(
         {
           _id: user._id,
-          userName: user.userName,
           email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          name: user.firstName + ' ' + user.lastName,
         },
         {
           secret: process.env.JWT_SECRET,
@@ -58,14 +63,14 @@ export class AuthController {
       );
 
       res.cookie('__session', token, {
-        // domain: process.env.FE_BASE_URL,
+        domain: process.env.FE_BASE_URL,
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: true,
+        sameSite: 'strict',
       });
 
       return res.json({
-        isSucces: true,
+        isSuccess: true,
         message: 'Login successful',
       });
     } else {
@@ -73,6 +78,21 @@ export class AuthController {
         message: 'Invalid credentials',
       });
     }
+  }
+
+  @Post('logout')
+  async logout(@Res() res: Response) {
+    res.clearCookie('__session', {
+      domain: process.env.FE_BASE_URL,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+    });
+
+    return res.json({
+      isSuccess: true,
+      message: 'Logout successful',
+    });
   }
 
   @UseGuards(JWTAuthGuard)
@@ -83,11 +103,11 @@ export class AuthController {
     return {
       isSuccess: true,
       data: {
+        _id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         name: user.firstName + ' ' + user.lastName,
         email: user.email,
-        userName: user.userName,
       },
     };
   }
